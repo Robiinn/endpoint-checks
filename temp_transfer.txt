@@ -23,6 +23,11 @@ $st  = [N.Ntdll]::NtQueryInformationProcess($p.Handle, 29, $buf, 4, [ref]$ret)
 "NTSTATUS=0x{0:X}  BreakOnTermination={1}" -f $st, [Runtime.InteropServices.Marshal]::ReadInt32($buf)
 [Runtime.InteropServices.Marshal]::FreeHGlobal($buf)
 
+## Attempt a process kill and display the error
+$st  = [N.Ntdll]::NtQueryInformationProcess($p.Handle, 0)
+"NtTerminateProcess NTSTATUS = 0x{0:X8}" -f $st
+
+## Is this part needed or already covered by the above?
 ## Attempt to create a handle and close, then show errors
 $h = [N.Ntdll]::OpenProcess(0x0001, $false, $targetPid)   # PROCESS_TERMINATE
 if ($h -eq [IntPtr]::Zero) {
