@@ -2,11 +2,33 @@ Add-Type -Namespace N -Name Ntdll -MemberDefinition @"
 [DllImport("ntdll.dll")]
 public static extern int NtQueryInformationProcess(
     IntPtr h, int cls, IntPtr buf, uint len, out uint ret);
+
+[DllImport("ntdll.dll")]
+public static extern int NtTerminateProcess(IntPtr h, int exitStatus);
+
+[DllImport("kernel32.dll", SetLastError=true)]
+public static extern IntPtr OpenProcess(uint da, bool inherit, uint pid);
+
+[DllImport("kernel32.dll")]
+public static extern bool CloseHandle(IntPtr h);
 "@
 
+## Open the handle
 $p   = Get-Process stAgentSvc
+
+## Read NtQueryInformationProcess such as ProcessBreakOnTermination
 $buf = [Runtime.InteropServices.Marshal]::AllocHGlobal(4)
 $ret = 0
 $st  = [N.Ntdll]::NtQueryInformationProcess($p.Handle, 29, $buf, 4, [ref]$ret)
 "NTSTATUS=0x{0:X}  BreakOnTermination={1}" -f $st, [Runtime.InteropServices.Marshal]::ReadInt32($buf)
 [Runtime.InteropServices.Marshal]::FreeHGlobal($buf)
+
+## Attempt to create a handle and close, then show errors
+$h = [N.Ntdll]::OpenProcess(0x0001, $false, $targetPid)   # PROCESS_TERMINATE
+if ($h -eq [IntPtr]::Zero) {
+    "OpenProcess failed, Win32 error {0}" -f [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+} else {
+    $st = [N.Ntdll]::NtTerminateProcess($h, 0)
+    "NtTerminateProcess NTSTATUS = 0x{0:X8}" -f $st
+    [N.Ntdll]::CloseHandle($h) | Out-Null
+}
